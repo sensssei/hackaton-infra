@@ -12,6 +12,6 @@
 
 1. **Клонируйте репозиторий:**
 '' bash
-   git clone https://github.com/sensssei/hackaton-infra.git
-   cd hackathon-infra
-   ./setup.sh
+- git clone https://github.com/sensssei/hackaton-infra.git
+- cd hackathon-infra
+- ./setup.sh
