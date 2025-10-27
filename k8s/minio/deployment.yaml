@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: helpdesk-infra
+  labels:
+    app: minio
+    app.kubernetes.io/part-of: helpdesk-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio:latest
+        command:
+        - /bin/sh
+        - -c
+        - minio server /data --console-address ":9001"
+        env:
+        - name: MINIO_ROOT_USER
+          value: "minioadmin"
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: helpdesk-secrets
+              key: minio-password
+        ports:
+        - containerPort: 9000
+          name: api
+        - containerPort: 9001
+          name: console
+        volumeMounts:
+        - name: minio-data
+          mountPath: /data
+        livenessProbe:
+          exec:
+            command:
+            - curl
+            - -f
+            - http://localhost:9000/minio/health/live
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - curl
+            - -f
+            - http://localhost:9000/minio/health/live
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: minio-data
+        persistentVolumeClaim:
+          claimName: minio-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: helpdesk-infra
+  labels:
+    app: minio
+    app.kubernetes.io/part-of: helpdesk-infra
+spec:
+  ports:
+  - port: 9000
+    targetPort: 9000
+    name: api
+  - port: 9001
+    targetPort: 9001
+    name: console
+  selector:
+    app: minio
