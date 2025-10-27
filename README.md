@@ -11,7 +11,7 @@
 ### Установка
 
 1. **Клонируйте репозиторий:**
-- '' bash
+- Работаем в  "bash"
 - git clone https://github.com/sensssei/hackaton-infra.git
 - cd hackathon-infra
 - ./setup.sh
