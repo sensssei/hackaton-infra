@@ -19,24 +19,24 @@ fi
 
 # Создаем .env файл, если такого нету
 if [ ! -f .env ]; then
-    echo "📝 Creating .env file from .env.example..."
+    echo "📝 Создаем .env файл из .env.example..."
     cp .env.example .env
-    echo "⚠️  Please edit .env file with your actual passwords!"
+    echo "⚠️  Пожалуйста отредактируйте .env файл на ваши актуальные пароли!"
 fi
 
-# Генерируем рандомные пароли если .env пустой (исправленная версия)
+# Генерируем рандомные пароли если .env пустой 
 if [ ! -s .env ] || grep -q "strong_password_here" .env; then
-    echo "🔐 Generating secure passwords..."
+    echo "🔐 Генерируем пароли..."
     
-    # Generate random passwords
+    # Генерируем рандомный пароль
     POSTGRES_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "postgres_secure_123")
     MONGO_ROOT_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "mongo_secure_123") 
     REDIS_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "redis_secure_123")
     MINIO_ROOT_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "minio_secure_123")
     KEYCLOAK_ADMIN_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "keycloak_secure_123")
     
-    # Обновляем .env файл (кроссплатформенный способ)
-    echo "Updating .env file with secure passwords..."
+    # Обновляем .env файл 
+    echo "Обнавляем .env файл новыми паролями..."
     
     # Создаем временный файл
     cat > .env.tmp << EOF
@@ -64,11 +64,11 @@ EOF
 
     # Заменяем оригинальный файл
     mv .env.tmp .env
-    echo "✅ Passwords generated and saved to .env"
+    echo "✅ Пароли сгенерированы и сохранены в .env"
 fi
 
 # Создаем необходимые директории
-echo "📁 Creating configuration directories..."
+echo "📁 Создаем дириктории конфигурации..."
 mkdir -p config/keycloak config/minio config/postgres
 
 # Создаем PostgreSQL init скрипт
@@ -78,24 +78,24 @@ GRANT ALL PRIVILEGES ON DATABASE keycloak TO helpdesk_user;
 EOF
 
 # Загружаем образы
-echo "📥 Pulling Docker images..."
+echo "📥 Загружаем Docker images..."
 docker-compose pull
 
 # Запускаем сервис
-echo "🔄 Starting services..."
+echo "🔄 Старт сервисов..."
 docker-compose up -d
 
-echo "⏳ Waiting for services to be healthy..."
+echo "⏳ Ждем когда сервисы станут healthy..."
 sleep 30
 
 # Проверяем service status
-echo "🔍 Checking service status..."
+echo "🔍 Проверяем статус сервисов..."
 docker-compose ps
 
 echo ""
-echo "✅ Setup completed successfully!"
+echo "✅ Установка выполненна успешно!"
 echo ""
-echo "📊 Services are running on:"
+echo "📊 Сервисы запущены на:"
 echo "   PostgreSQL:      localhost:5432"
 echo "   MongoDB:         localhost:27017"
 echo "   Redis:           localhost:6379"
@@ -105,5 +105,5 @@ echo ""
 echo "🔑 Keycloak Admin: http://localhost:8080/admin"
 echo "📦 MinIO Console:  http://localhost:9001"
 echo ""
-echo "🛑 To stop services: docker-compose down"
-echo "📈 To view logs:    docker-compose logs -f"
+echo "🛑 Чтобы остановить сервисы: docker-compose down"
+echo "📈 Посмотреть логи:    docker-compose logs -f"
