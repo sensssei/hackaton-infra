@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: helpdesk-infra
+  labels:
+    app: keycloak
+    app.kubernetes.io/part-of: helpdesk-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.35
+        command: ['sh', '-c', 'until nc -z postgres 5432; do echo waiting for postgres; sleep 2; done;']
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:24.0
+        args: ["start-dev"]
+        env:
+        - name: KEYCLOAK_ADMIN
+          value: "admin"
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: helpdesk-secrets
+              key: keycloak-password
+        - name: KC_DB
+          value: "postgres"
+        - name: KC_DB_URL
+          value: "jdbc:postgresql://postgres:5432/helpdesk"
+        - name: KC_DB_USERNAME
+          value: "helpdesk_user"
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: helpdesk-secrets
+              key: postgres-password
+        - name: KC_HOSTNAME
+          value: "localhost"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: keycloak-config
+          mountPath: /opt/keycloak/data/import
+        livenessProbe:
+          exec:
+            command:
+            - curl
+            - -f
+            - http://localhost:8080/health/ready
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - curl
+            - -f
+            - http://localhost:8080/health/ready
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: keycloak-config
+        configMap:
+          name: keycloak-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: helpdesk-infra
+  labels:
+    app: keycloak
+    app.kubernetes.io/part-of: helpdesk-infra
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: keycloak
