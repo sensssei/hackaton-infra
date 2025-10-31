@@ -34,38 +34,26 @@ spec:
         volumeMounts:
         - name: mongodb-data
           mountPath: /data/db
+        # Правильные health check пробы
         livenessProbe:
           exec:
             command:
-            - sh
+            - /bin/bash
             - -c
-            - "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
+            - 'mongosh --username admin --password "$MONGO_INITDB_ROOT_PASSWORD" --eval "db.adminCommand(\"ping\")" --quiet'
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 10
         readinessProbe:
           exec:
             command:
-            - sh
+            - /bin/bash
             - -c
-            - "echo 'db.runCommand(\"ping\").ok' | mongosh localhost:27017/test --quiet"
+            - 'mongosh --username admin --password "$MONGO_INITDB_ROOT_PASSWORD" --eval "db.adminCommand(\"ping\")" --quiet'
           initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 5
       volumes:
       - name: mongodb-data
         persistentVolumeClaim:
           claimName: mongodb-pvc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongodb
-  namespace: helpdesk-infra
-  labels:
-    app: mongodb
-    app.kubernetes.io/part-of: helpdesk-infra
-spec:
-  ports:
-  - port: 27017
-    targetPort: 27017
-  selector:
-    app: mongodb

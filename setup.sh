@@ -89,8 +89,11 @@ deploy_docker() {
 
     # Создаем PostgreSQL init скрипт
     cat > config/postgres/init.sql << EOF
-CREATE DATABASE keycloak;
-CREATE DATABASE helpdesk;
+-- Создаем базы данных если они не существуют
+CREATE DATABASE IF NOT EXISTS keycloak;
+CREATE DATABASE IF NOT EXISTS helpdesk;
+
+-- Даем полные права пользователю на обе базы
 GRANT ALL PRIVILEGES ON DATABASE keycloak TO helpdesk_user;
 GRANT ALL PRIVILEGES ON DATABASE helpdesk TO helpdesk_user;
 EOF
@@ -105,6 +108,31 @@ EOF
 
     echo "⏳ Ждем когда сервисы станут healthy..."
     sleep 30
+
+    # 🔧 ДОБАВЛЕНО: Настраиваем права доступа в PostgreSQL
+    echo "🔧 Настраиваем права доступа в PostgreSQL..."
+    
+    # Ждем когда PostgreSQL будет готов
+    echo "⏳ Ожидаем готовности PostgreSQL..."
+    sleep 10
+    
+    # Даем права на схемы в существующих БД
+    echo "📋 Применяем права на схемы..."
+    docker exec helpdesk-postgres psql -U postgres -c "
+    \c keycloak;
+    GRANT ALL ON SCHEMA public TO helpdesk_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO helpdesk_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO helpdesk_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO helpdesk_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO helpdesk_user;
+
+    \c helpdesk;
+    GRANT ALL ON SCHEMA public TO helpdesk_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO helpdesk_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO helpdesk_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO helpdesk_user;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO helpdesk_user;
+    " || echo "⚠️  Предупреждение: Не удалось применить права на схемы (возможно БД еще не готовы)"
 
     # Проверяем service status
     echo "🔍 Проверяем статус сервисов..."
