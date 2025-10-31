@@ -35,7 +35,7 @@ spec:
         - name: KC_DB
           value: "postgres"
         - name: KC_DB_URL
-          value: "jdbc:postgresql://postgres:5432/helpdesk"
+          value: "jdbc:postgresql://postgres:5432/keycloak" 
         - name: KC_DB_USERNAME
           value: "helpdesk_user"
         - name: KC_DB_PASSWORD
@@ -53,20 +53,22 @@ spec:
         livenessProbe:
           exec:
             command:
-            - curl
-            - -f
+            - wget
+            - --no-verbose
+            - --tries=1
+            - --spider
             - http://localhost:8080/health/ready
-          initialDelaySeconds: 60
+          initialDelaySeconds: 90
           periodSeconds: 30
-          timeoutSeconds: 10
-          failureThreshold: 5
         readinessProbe:
           exec:
             command:
-            - curl
-            - -f
+            - wget  
+            - --no-verbose
+            - --tries=1
+            - --spider
             - http://localhost:8080/health/ready
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
       volumes:
       - name: keycloak-config

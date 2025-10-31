@@ -41,7 +41,7 @@ if [ ! -s .env ] || grep -q "strong_password_here" .env; then
     echo "🔐 Генерируем пароли..."
     
     # Генерируем рандомный пароль
-    POSTGRES_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "postgres_secure_123")
+    POSTGRES_PASSWORD=$(openssl rand -hex 32 2>/dev/null || echo "postgres_secure_123")
     MONGO_ROOT_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "mongo_secure_123") 
     REDIS_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "redis_secure_123")
     MINIO_ROOT_PASSWORD=$(openssl rand -base64 32 2>/dev/null || echo "minio_secure_123")
@@ -90,7 +90,9 @@ deploy_docker() {
     # Создаем PostgreSQL init скрипт
     cat > config/postgres/init.sql << EOF
 CREATE DATABASE keycloak;
+CREATE DATABASE helpdesk;
 GRANT ALL PRIVILEGES ON DATABASE keycloak TO helpdesk_user;
+GRANT ALL PRIVILEGES ON DATABASE helpdesk TO helpdesk_user;
 EOF
 
     # Загружаем образы
@@ -136,15 +138,15 @@ deploy_kubernetes() {
     # Создаем секреты
     echo "🔐 Создаем Kubernetes secrets..."
     kubectl create secret generic helpdesk-secrets \
-        --namespace="$namespace" \
-        --from-literal=postgres-password="$POSTGRES_PASSWORD" \
-        --from-literal=mongo-password="$MONGO_ROOT_PASSWORD" \
-        --from-literal=redis-password="$REDIS_PASSWORD" \
-        --from-literal=minio-password="$MINIO_ROOT_PASSWORD" \
-        --from-literal=keycloak-password="$KEYCLOAK_ADMIN_PASSWORD" \
-        --dry-run=client -o yaml | kubectl apply -f -
+      --namespace="$namespace" \
+      --from-literal=postgres-password="$POSTGRES_PASSWORD" \
+      --from-literal=mongo-password="$MONGO_ROOT_PASSWORD" \
+      --from-literal=redis-password="$REDIS_PASSWORD" \
+      --from-literal=minio-password="$MINIO_ROOT_PASSWORD" \
+      --from-literal=keycloak-password="$KEYCLOAK_ADMIN_PASSWORD" \
+      --dry-run=client -o yaml | kubectl apply -f -
     
-    # Применяем манифесты ПОФАЙЛОВО - исправленные пути
+    # Применяем манифесты ПОФАЙЛОВО 
     echo "📋 Применяем Kubernetes манифесты..."
     
     # Функция для безопасного применения манифестов
@@ -160,7 +162,6 @@ deploy_kubernetes() {
     
     # Базовые манифесты (из k8s/base/)
     apply_manifest "k8s/base/namespace.yaml"
-    apply_manifest "k8s/base/secrets.yaml"
     
     # PostgreSQL (из k8s/postgres/)
     apply_manifest "k8s/postgres/pvc.yaml"
