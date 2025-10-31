@@ -174,7 +174,7 @@ deploy_kubernetes() {
       --from-literal=keycloak-password="$KEYCLOAK_ADMIN_PASSWORD" \
       --dry-run=client -o yaml | kubectl apply -f -
     
-    # Применяем манифесты ПОФАЙЛОВО 
+    # Применяем манифесты в ПРАВИЛЬНОМ ПОРЯДКЕ
     echo "📋 Применяем Kubernetes манифесты..."
     
     # Функция для безопасного применения манифестов
@@ -188,32 +188,30 @@ deploy_kubernetes() {
         fi
     }
     
-    # Базовые манифесты (из k8s/base/)
+    # 1. Базовые манифесты
     apply_manifest "k8s/base/namespace.yaml"
+    apply_manifest "k8s/base/secrets.yaml"
     
-    # PostgreSQL (из k8s/postgres/)
+    # 2. PVC (должны быть перед Deployment)
     apply_manifest "k8s/postgres/pvc.yaml"
-    apply_manifest "k8s/postgres/configmap.yaml"
-    apply_manifest "k8s/postgres/deployment.yaml"
-    
-    # MongoDB (из k8s/mongodb/)
     apply_manifest "k8s/mongodb/pvc.yaml"
-    apply_manifest "k8s/mongodb/deployment.yaml"
-    
-    # Redis (из k8s/redis/)
     apply_manifest "k8s/redis/pvc.yaml"
-    apply_manifest "k8s/redis/deployment.yaml"
-    
-    # MinIO (из k8s/minio/)
     apply_manifest "k8s/minio/pvc.yaml"
-    apply_manifest "k8s/minio/deployment.yaml"
     
-    # Keycloak (из k8s/keycloak/)
+    # 3. ConfigMaps
+    apply_manifest "k8s/postgres/configmap.yaml"
     apply_manifest "k8s/keycloak/configmap.yaml"
+    
+    # 4. Deployments и Services
+    apply_manifest "k8s/postgres/deployment.yaml"
+    apply_manifest "k8s/mongodb/deployment.yaml"
+    apply_manifest "k8s/mongodb/service.yaml"  # НОВЫЙ СЕРВИС
+    apply_manifest "k8s/redis/deployment.yaml"
+    apply_manifest "k8s/minio/deployment.yaml"
     apply_manifest "k8s/keycloak/deployment.yaml"
     
     echo "⏳ Ожидаем запуск подов..."
-    sleep 10  # Даем подам время начать запускаться
+    sleep 10
     
     # Ждем готовности всех подов с таймаутом
     timeout=300
@@ -221,36 +219,29 @@ deploy_kubernetes() {
     all_ready=false
     
     while [ $counter -lt $timeout ]; do
-        # Проверяем статус всех подов в namespace
-        pods_status=$(kubectl get pods -n "$namespace" -o jsonpath='{range .items[*]}{.metadata.name}={.status.phase}{"\n"}{end}' 2>/dev/null)
+        running_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l || echo "0")
+        total_pods=$(kubectl get pods -n "$namespace" --no-headers 2>/dev/null | wc -l || echo "0")
+        failed_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Failed --no-headers 2>/dev/null | wc -l || echo "0")
         
-        if [ -z "$pods_status" ]; then
-            echo "⏳ Ожидаем создания подов..."
-        else
-            running_pods=$(echo "$pods_status" | grep -c "Running" || true)
-            total_pods=$(echo "$pods_status" | wc -l)
-            failed_pods=$(echo "$pods_status" | grep -c "Failed" || true)
-            
-            echo "⏳ Статус: $running_pods/$total_pods подов запущено"
-            
-            # Показываем статус каждого пода
-            kubectl get pods -n "$namespace" --no-headers 2>/dev/null | while read line; do
-                pod_name=$(echo "$line" | awk '{print $1}')
-                pod_status=$(echo "$line" | awk '{print $3}')
-                echo "  📦 $pod_name: $pod_status"
-            done
-            
-            if [ "$failed_pods" -gt 0 ]; then
-                echo "❌ Есть упавшие поды. Проверьте логи:"
-                kubectl get pods -n "$namespace" 2>/dev/null | grep Failed || true
-                break
-            fi
-            
-            if [ "$running_pods" -eq "$total_pods" ] && [ "$total_pods" -ge 5 ]; then
-                echo "✅ Все поды готовы!"
-                all_ready=true
-                break
-            fi
+        echo "⏳ Статус: $running_pods/$total_pods подов запущено"
+        
+        # Показываем статус каждого пода
+        kubectl get pods -n "$namespace" --no-headers 2>/dev/null | while read line; do
+            pod_name=$(echo "$line" | awk '{print $1}')
+            pod_status=$(echo "$line" | awk '{print $3}')
+            echo "  📦 $pod_name: $pod_status"
+        done
+        
+        if [ "$failed_pods" -gt 0 ]; then
+            echo "❌ Есть упавшие поды. Проверьте логи:"
+            kubectl get pods -n "$namespace" 2>/dev/null | grep Failed || true
+            break
+        fi
+        
+        if [ "$running_pods" -eq "$total_pods" ] && [ "$total_pods" -ge 5 ]; then
+            echo "✅ Все поды готовы!"
+            all_ready=true
+            break
         fi
         
         sleep 10
@@ -261,10 +252,6 @@ deploy_kubernetes() {
         echo "⚠️  Не все поды запустились за отведенное время"
         echo "📋 Текущий статус:"
         kubectl get pods -n "$namespace" 2>/dev/null || echo "Не удалось получить статус подов"
-        echo ""
-        echo "🔍 Для диагностики выполните:"
-        echo "   kubectl describe pods -n $namespace"
-        echo "   kubectl logs -n $namespace [pod-name]"
     else
         echo "✅ Все сервисы успешно запущены!"
     fi
